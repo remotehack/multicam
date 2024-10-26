@@ -1,4 +1,4 @@
-import { DurableObject } from "cloudflare:workers";
+import { DurableObject } from 'cloudflare:workers';
 
 /**
  * Welcome to Cloudflare Workers! This is your first Durable Objects application.
@@ -12,7 +12,6 @@ import { DurableObject } from "cloudflare:workers";
  *
  * Learn more at https://developers.cloudflare.com/durable-objects
  */
-
 
 /** A Durable Object's behavior is defined in an exported Javascript class */
 export class MyDurableObject extends DurableObject {
@@ -37,6 +36,46 @@ export class MyDurableObject extends DurableObject {
 	async sayHello(name: string): Promise<string> {
 		return `Hello, ${name}!`;
 	}
+
+	async fetch(request: Request): Promise<Response> {
+		// Creates two ends of a WebSocket connection.
+		const webSocketPair = new WebSocketPair();
+		const [client, server] = Object.values(webSocketPair);
+
+		this.ctx.acceptWebSocket(server);
+
+		await this.notifyPresence();
+
+		return new Response(null, {
+			status: 101,
+			webSocket: client,
+		});
+	}
+
+	async webSocketMessage(ws: WebSocket, message: ArrayBuffer | string) {
+		ws.send(`[Durable Object] message: ${message}, connections: ${this.ctx.getWebSockets().length}`);
+	}
+
+	async webSocketClose(ws: WebSocket, code: number, reason: string, wasClean: boolean) {
+		ws.close(code, 'Durable Object is closing WebSocket');
+
+		await this.notifyPresence();
+	}
+
+	async notifyPresence() {
+		const active = this.ctx.getWebSockets().filter((s) => s.readyState === WebSocket.OPEN);
+
+		const message = JSON.stringify({
+			type: 'presence',
+			payload: {
+				count: active.length,
+			},
+		});
+
+		for (const sock of active) {
+			sock.send(message);
+		}
+	}
 }
 
 export default {
@@ -49,6 +88,21 @@ export default {
 	 * @returns The response to be sent back to the client
 	 */
 	async fetch(request, env, ctx): Promise<Response> {
+		console.log(request.url);
+		if (request.url.endsWith('/sock')) {
+			const upgradeHeader = request.headers.get('Upgrade');
+			if (!upgradeHeader || upgradeHeader !== 'websocket') {
+				return new Response('Durable Object expected Upgrade: websocket', { status: 426 });
+			}
+
+			// This example will refer to the same Durable Object,
+			// since the name "foo" is hardcoded.
+			let id = env.MY_DURABLE_OBJECT.idFromName('foo');
+			let stub = env.MY_DURABLE_OBJECT.get(id);
+
+			return stub.fetch(request);
+		}
+
 		// We will create a `DurableObjectId` using the pathname from the Worker request
 		// This id refers to a unique instance of our 'MyDurableObject' class above
 		let id: DurableObjectId = env.MY_DURABLE_OBJECT.idFromName(new URL(request.url).pathname);
@@ -59,7 +113,7 @@ export default {
 
 		// We call the `sayHello()` RPC method on the stub to invoke the method on the remote
 		// Durable Object instance
-		let greeting = await stub.sayHello("world");
+		let greeting = await stub.sayHello('world');
 
 		return new Response(greeting);
 	},
