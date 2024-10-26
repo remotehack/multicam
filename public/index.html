@@ -3,17 +3,43 @@
 	<head>
 		<meta charset="UTF-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-		<title>Hello, World!</title>
+		<title>📸 multicam</title>
+		<style>
+			body {
+				font-family: 'Courier New', Courier, monospace;
+			}
+			* {
+				font-weight: 100;
+			}
+		</style>
 	</head>
 	<body>
-		<h1 id="heading"></h1>
-		<script>
+		<nav>
+			<a id="create" href="?c=NEW_CAMERA">create a camera</a>
+		</nav>
+
+		<main>
+			<h1>
+				📸
+				<span data-bind="name">-</span>
+				<small data-bind="cams">-</small>
+			</h1>
+			<button>Take picture</button>
+
+			<hr />
+
+			<ol></ol>
+		</main>
+
+		<script src="main.js"></script>
+
+		<!-- <script>
 			fetch('/message')
 				.then((resp) => resp.text())
 				.then((text) => {
 					const h1 = document.getElementById('heading');
 					h1.textContent = text;
 				});
-		</script>
+		</script> -->
 	</body>
 </html>
