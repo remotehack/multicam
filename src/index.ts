@@ -53,7 +53,22 @@ export class MyDurableObject extends DurableObject {
 	}
 
 	async webSocketMessage(ws: WebSocket, message: ArrayBuffer | string) {
-		ws.send(`[Durable Object] message: ${message}, connections: ${this.ctx.getWebSockets().length}`);
+		console.log('message', message);
+		if (typeof message === 'string') {
+			try {
+				const j = JSON.parse(message);
+				if (j.type === 'broadcast') {
+					for (const sock of this.ctx.getWebSockets()) {
+						if (sock.readyState === WebSocket.OPEN) {
+							sock.send(message);
+						}
+					}
+				}
+			} catch (e) {
+				console.error(e);
+			}
+		}
+		// ws.send(`[Durable Object] message: ${message}, connections: ${this.ctx.getWebSockets().length}`);
 	}
 
 	async webSocketClose(ws: WebSocket, code: number, reason: string, wasClean: boolean) {
@@ -95,9 +110,7 @@ export default {
 				return new Response('Durable Object expected Upgrade: websocket', { status: 426 });
 			}
 
-			// This example will refer to the same Durable Object,
-			// since the name "foo" is hardcoded.
-			let id = env.MY_DURABLE_OBJECT.idFromName('foo');
+			let id = env.MY_DURABLE_OBJECT.idFromName(new URL(request.url).pathname);
 			let stub = env.MY_DURABLE_OBJECT.get(id);
 
 			return stub.fetch(request);

@@ -40,6 +40,10 @@ if (!name) {
         }
     })
 
+    document.querySelector('#capture_picture').addEventListener('click', () => {
+        socket.send(JSON.stringify({ type: 'broadcast', payload: 'capture:picture' }))
+    })
+
 }
 
 
