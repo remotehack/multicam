@@ -11,19 +11,35 @@
 			* {
 				font-weight: 100;
 			}
+			header {
+				display: flex;
+				justify-content: space-between;
+			}
+			#capture video {
+				height: 5em;
+				background-color: #7772;
+			}
 		</style>
 	</head>
 	<body>
 		<nav>
-			<a id="create" href="?c=NEW_CAMERA">create a camera</a>
+			<a id="create" href="#">create a camera</a>
 		</nav>
 
 		<main>
-			<h1>
-				📸
-				<span data-bind="name">-</span>
-				<small data-bind="cams">-</small>
-			</h1>
+			<header>
+				<h1>
+					📸
+					<span data-bind="name">-</span>
+					<small data-bind="cams">-</small>
+				</h1>
+
+				<div id="capture">
+					<button>start</button>
+					<video autoplay></video>
+				</div>
+			</header>
+
 			<button id="capture_picture">Take picture</button>
 
 			<hr />
@@ -31,7 +47,7 @@
 			<ol></ol>
 		</main>
 
-		<script src="main.js"></script>
+		<script type="module" src="main.js"></script>
 
 		<!-- <script>
 			fetch('/message')

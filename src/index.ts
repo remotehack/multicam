@@ -13,6 +13,8 @@ import { DurableObject } from 'cloudflare:workers';
  * Learn more at https://developers.cloudflare.com/durable-objects
  */
 
+const pattern = new URLPattern({ pathname: '/:uuid/:action' });
+
 /** A Durable Object's behavior is defined in an exported Javascript class */
 export class MyDurableObject extends DurableObject {
 	/**
@@ -37,18 +39,39 @@ export class MyDurableObject extends DurableObject {
 		return `Hello, ${name}!`;
 	}
 
+	async sayHello2(name: string): Promise<string> {
+		return `Hello, ${name}!`;
+	}
+
 	async fetch(request: Request): Promise<Response> {
-		// Creates two ends of a WebSocket connection.
-		const webSocketPair = new WebSocketPair();
-		const [client, server] = Object.values(webSocketPair);
+		const match = pattern.exec(request.url);
+		if (match) {
+			const { action } = match.pathname.groups;
 
-		this.ctx.acceptWebSocket(server);
+			if (action === 'sock') {
+				// Creates two ends of a WebSocket connection.
+				const webSocketPair = new WebSocketPair();
+				const [client, server] = Object.values(webSocketPair);
 
-		await this.notifyPresence();
+				this.ctx.acceptWebSocket(server);
 
-		return new Response(null, {
-			status: 101,
-			webSocket: client,
+				await this.notifyPresence();
+
+				return new Response(null, {
+					status: 101,
+					webSocket: client,
+				});
+			}
+
+			if (action === 'image') {
+				return new Response('Image Upload', {
+					status: 200,
+				});
+			}
+		}
+
+		return new Response('Action not supported', {
+			status: 500,
 		});
 	}
 
@@ -103,17 +126,37 @@ export default {
 	 * @returns The response to be sent back to the client
 	 */
 	async fetch(request, env, ctx): Promise<Response> {
-		console.log(request.url);
-		if (request.url.endsWith('/sock')) {
-			const upgradeHeader = request.headers.get('Upgrade');
-			if (!upgradeHeader || upgradeHeader !== 'websocket') {
-				return new Response('Durable Object expected Upgrade: websocket', { status: 426 });
-			}
+		const match = pattern.exec(request.url);
+		if (match) {
+			const { uuid, action } = match.pathname.groups;
 
-			let id = env.MY_DURABLE_OBJECT.idFromName(new URL(request.url).pathname);
+			let id = env.MY_DURABLE_OBJECT.idFromName(uuid);
 			let stub = env.MY_DURABLE_OBJECT.get(id);
 
-			return stub.fetch(request);
+			if (action === 'sock') {
+				const upgradeHeader = request.headers.get('Upgrade');
+				if (!upgradeHeader || upgradeHeader !== 'websocket') {
+					return new Response('Durable Object expected Upgrade: websocket', { status: 426 });
+				}
+
+				return stub.fetch(request);
+			}
+
+			if (action === 'image') {
+				// Handle the image upload first
+				const uploadResponse = await handleImageUpload(request);
+				if (!uploadResponse.ok) {
+					return new Response('Image upload failed', { status: 500 });
+				}
+
+				// Notify the Durable Object after the upload
+				const notifyResponse = await stub.fetch(new Request(request.url, { method: 'POST' }));
+				if (!notifyResponse.ok) {
+					return new Response('Failed to notify Durable Object', { status: 500 });
+				}
+
+				return new Response('Image uploaded and Durable Object notified', { status: 200 });
+			}
 		}
 
 		// We will create a `DurableObjectId` using the pathname from the Worker request
@@ -131,3 +174,9 @@ export default {
 		return new Response(greeting);
 	},
 } satisfies ExportedHandler<Env>;
+
+async function handleImageUpload(request: Request): Promise<Response> {
+	// Implement your image upload logic here
+	// For example, you can upload to a storage service like Cloudflare R2 or another service
+	return new Response('Image uploaded', { status: 200 });
+}
